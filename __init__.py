@@ -180,9 +180,6 @@ def build_event(hook: str, payload: dict[str, Any], profile: str, now: datetime)
         "day": day,
         "usage": map_usage(payload.get("usage")),
     }
-    version = _hermes_version()
-    if version:
-        record["app_version"] = version
     parent = payload.get("parent_session_id")
     if isinstance(parent, str) and parent:
         record["parent_session_id"] = _clip(parent, "")
@@ -192,21 +189,6 @@ def build_event(hook: str, payload: dict[str, Any], profile: str, now: datetime)
         record["request_id"] = _clip(request_id, "")
         record["request_id_scope"] = "session"
     return record
-
-
-_VERSION: Optional[str] = None
-
-
-def _hermes_version() -> Optional[str]:
-    global _VERSION
-    if _VERSION is None:
-        try:
-            from hermes_cli import __version__  # type: ignore
-
-            _VERSION = str(__version__)
-        except Exception:
-            _VERSION = ""
-    return _VERSION or None
 
 
 # ---------------------------------------------------------------------------------------------

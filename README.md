@@ -2,7 +2,7 @@
 
 **Shows your Hermes token usage in Soft Halo's always-on-top overlay, next to Claude Code and your other AI tools.** This plugin records usage numbers to a local folder; the Soft Halo desktop app reads them.
 
-Status: 0.1.0. Tested on 12 November 2026 with Hermes v0.13.0 in WSL: one OpenRouter call was recorded and shown by Soft Halo 2.0.5.20. Hermes v0.13.0 has no `post_auxiliary_call` hook, so its side calls (such as title generation) are not counted there; Hermes logs a warning about the unknown hook and carries on.
+Status: 0.1.0. Tested in WSL with Hermes v0.23.1 (13 November 2026) and v0.13.0 (12 November), recording OpenRouter calls that Soft Halo 2.0.5.20 showed; passes `hermes plugins validate` on v0.23.1. Hermes versions without the `post_auxiliary_call` hook (v0.13.0 has none) do not count side calls such as title generation; Hermes logs a warning about the unknown hook and carries on.
 
 ## Requirements
 

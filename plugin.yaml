@@ -5,3 +5,4 @@ author: "Soft Halo"
 provides_hooks:
   - post_api_request
   - post_auxiliary_call
+requires_hermes: ">=0.13.0"
