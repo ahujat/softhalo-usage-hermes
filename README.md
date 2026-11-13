@@ -7,7 +7,9 @@ Status: 0.1.0. Tested on 12 November 2026 with Hermes v0.13.0 in WSL: one OpenRo
 ## Requirements
 
 - Hermes Agent with observer hooks (`post_api_request`, `post_auxiliary_call`).
-- **Windows** (Hermes on Windows itself or in WSL), with **Soft Halo for Windows** (a version with AI usage, 2.0.5 or later). Without it, the plugin only writes small files that nothing reads.
+- **Windows** (Hermes on Windows itself or in WSL), with **Soft Halo for Windows 2.0.5.20 or later**. Without it, the plugin only writes small files that nothing reads.
+
+Soft Halo with AI usage is in beta: get the signed 2.0.5.22 build from the [beta page](https://softhalo.app/download/beta-20522-3535fbf8dac88ffa) (SHA-256 `5985046EDE0CD2774BA35101B583A6E18E32FDC24D7E49253D0F8E5258086E45`, also in [SHA256SUMS.txt](https://softhalo.app/downloads/windows/beta-2.0.5.22-5985046ede0cd277/SHA256SUMS.txt)).
 
 ## Install
 
