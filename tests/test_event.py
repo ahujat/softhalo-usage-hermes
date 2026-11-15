@@ -126,11 +126,30 @@ class IdentityTests(unittest.TestCase):
         finally:
             shutil.rmtree(users, ignore_errors=True)
 
+    def test_an_unmounted_drive_says_to_mount_it(self):
+        self.assertIn("Mount your Windows drive", sh.wsl_miss_notice("/no/such/mnt/c/Users"))
+
+    def test_a_drive_mounted_later_is_found_within_a_minute_without_a_restart(self):
+        base = Path(tempfile.mkdtemp(prefix="softhalo-hm-mount-"))
+        try:
+            users = base / "c" / "Users"
+            now = [1000.0]
+            root_of = sh.WslRoot(str(users), "u", clock=lambda: now[0])
+            self.assertIsNone(root_of())
+            # The drive is mounted and Soft Halo's folder appears; the plugin looks again only after a minute.
+            (users / "Tarun" / "AppData" / "Local" / "Softhalo").mkdir(parents=True)
+            now[0] += 30
+            self.assertIsNone(root_of())
+            now[0] += 31
+            self.assertEqual(root_of(), users / "Tarun" / "AppData" / "Local" / "Softhalo" / "usage")
+        finally:
+            shutil.rmtree(base, ignore_errors=True)
+
     def test_a_folder_that_cannot_be_written_is_warned_about_once(self):
         blocker = Path(tempfile.mkdtemp(prefix="softhalo-hm-ro-"))
         try:
             (blocker / "x").write_text("a file, so x/usage can never be a folder")
-            hook = sh._make_hook("post_api_request", blocker / "x" / "usage", "hm-test")
+            hook = sh._make_hook("post_api_request", lambda: blocker / "x" / "usage", "hm-test")
             with self.assertLogs("softhalo_usage", level="WARNING") as logs:
                 hook(**main_payload())
                 hook(**main_payload())

@@ -18,7 +18,7 @@ import sys
 import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 
 ADAPTER_VERSION = "0.1.1"
 EVENT_MAX_BYTES = 16 * 1024  # Soft Halo refuses event files over 16 KiB
@@ -84,17 +84,44 @@ def wsl_miss_notice(users_dir: str = WSL_USERS_DIR) -> str:
             if d.is_dir() and d.name.lower() not in _NOT_A_USER and (d / "AppData" / "Local" / "Softhalo").exists()
         ]
     except OSError:
-        why = f"the Windows drive isn't visible at {users_dir}"
-    else:
-        why = (
-            f"several Windows users under {users_dir} have a Soft Halo folder and none is named like your Linux user"
-            if len(people) > 1
-            else f"no Windows user under {users_dir} has a Soft Halo folder (is Soft Halo installed on Windows?)"
+        return (
+            f"Soft Halo Usage: nothing is being recorded, because the Windows drive isn't visible at {users_dir}. "
+            "Mount your Windows drive; recording starts on a later request once it is. If Windows is mounted "
+            "somewhere else, set SOFTHALO_USAGE_DIR to Soft Halo's usage folder there."
+        )
+    example = f"{users_dir.rstrip('/')}/<you>/AppData/Local/Softhalo/usage"
+    if len(people) > 1:
+        return (
+            f"Soft Halo Usage: nothing is being recorded, because several Windows users under {users_dir} have a "
+            f"Soft Halo folder and none is named like your Linux user. Set SOFTHALO_USAGE_DIR to yours, for example "
+            f"{example}."
         )
     return (
-        f"Soft Halo Usage: nothing is recorded, because {why}. Set SOFTHALO_USAGE_DIR to Soft Halo's usage "
-        "folder, for example /mnt/c/Users/<you>/AppData/Local/Softhalo/usage."
+        f"Soft Halo Usage: nothing is being recorded, because no Windows user under {users_dir} has a Soft Halo "
+        "folder. Install and start Soft Halo on Windows; recording starts on a later request once it has. If its "
+        f"folder is elsewhere, set SOFTHALO_USAGE_DIR to it, for example {example}."
     )
+
+
+WSL_RETRY_SECONDS = 60.0
+
+
+class WslRoot:
+    """Inside WSL with no folder found yet: looks again on a hook call, at most once a minute, so a drive
+    mounted (or Soft Halo installed) later starts recording without restarting Hermes. No timer."""
+
+    def __init__(self, users_dir: str, linux_user: Optional[str], clock=time.monotonic) -> None:
+        self.users_dir = users_dir
+        self.linux_user = linux_user
+        self.clock = clock
+        self.path: Optional[Path] = None
+        self.next_look = clock() + WSL_RETRY_SECONDS
+
+    def __call__(self) -> Optional[Path]:
+        if self.path is None and self.clock() >= self.next_look:
+            self.path = wsl_usage_root(self.users_dir, self.linux_user)
+            self.next_look = self.clock() + WSL_RETRY_SECONDS
+        return self.path
 
 
 def resolve_root(env: dict[str, str], platform: str, home: Optional[str], os_release: str,
@@ -282,8 +309,11 @@ def write_failed_notice(root: Path, error: OSError) -> str:
 _write_warned: set[str] = set()
 
 
-def _make_hook(hook: str, root: Path, profile: str):
+def _make_hook(hook: str, root_of: Callable[[], Optional[Path]], profile: str):
     def on_call(**kwargs: Any) -> None:
+        root = root_of()
+        if root is None:
+            return
         try:
             now = datetime.now(timezone.utc)
             publish(root, build_event(hook, kwargs, profile, now), now)
@@ -304,10 +334,14 @@ def register(ctx: Any) -> None:
     home = env.get("HOME") or env.get("USERPROFILE") or str(Path.home())
     root = resolve_root(env, sys.platform, home, _platform.release())
     if root is None:
-        # Say why once, at load, instead of staying silent (C: not mounted, or no Soft Halo on Windows).
-        if is_wsl(env, sys.platform, _platform.release()):
-            logging.getLogger(__name__).warning(wsl_miss_notice())
-        return
+        if not is_wsl(env, sys.platform, _platform.release()):
+            return
+        # Say why once, at load, instead of staying silent (C: not mounted, or no Soft Halo on Windows),
+        # and keep looking, so mounting the drive later is enough.
+        logging.getLogger(__name__).warning(wsl_miss_notice())
+        root_of: Callable[[], Optional[Path]] = WslRoot(WSL_USERS_DIR, env.get("USER"))
+    else:
+        root_of = lambda: root
     profile = profile_id(hermes_home(env))
     for hook in ("post_api_request", "post_auxiliary_call"):
-        ctx.register_hook(hook, _make_hook(hook, root, profile))
+        ctx.register_hook(hook, _make_hook(hook, root_of, profile))
