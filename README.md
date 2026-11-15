@@ -2,7 +2,11 @@
 
 **Shows your Hermes token usage in Soft Halo's always-on-top overlay, next to Claude Code and your other AI tools.** This plugin records usage numbers to a local folder; the Soft Halo desktop app reads them.
 
-Status: 0.1.0. Tested in WSL with Hermes v0.23.1 (13 November 2026) and v0.13.0 (12 November), recording OpenRouter calls that Soft Halo 2.0.5.20 showed; passes `hermes plugins validate` on v0.23.1. Hermes versions without the `post_auxiliary_call` hook (v0.13.0 has none) do not count side calls such as title generation; Hermes logs a warning about the unknown hook and carries on.
+![Soft Halo overlay: Claude 5-hour and weekly limits and Codex weekly limit, each with usage and time left, and today's tokens for Claude, Codex and Hermes](docs/overlay.png)
+
+*Soft Halo's overlay stays on top of other windows; you can resize it and set how transparent it is.*
+
+Status: 0.1.1 (0.1.1 adds the WSL warning below). Tested in WSL with Hermes v0.23.1 (13 November 2026) and v0.13.0 (12 November), recording OpenRouter calls that Soft Halo 2.0.5.20 showed; passes `hermes plugins validate` on v0.23.1. Hermes versions without the `post_auxiliary_call` hook (v0.13.0 has none) do not count side calls such as title generation; Hermes logs a warning about the unknown hook and carries on.
 
 ## Requirements
 
@@ -12,6 +16,14 @@ Status: 0.1.0. Tested in WSL with Hermes v0.23.1 (13 November 2026) and v0.13.0 
 Soft Halo with AI usage is in beta: get the signed 2.0.5.28 build from the [beta page](https://softhalo.app/download/beta-20528-c17d7d2ef502eea9) (SHA-256 `9AFBDAEF9CE076B6ED1525FF7E6D93D61C0B4A4F5F9152ED59A446B0F0389C59`, also in [SHA256SUMS.txt](https://softhalo.app/downloads/windows/beta-2.0.5.28-9afbdaef9ce076b6/SHA256SUMS.txt)).
 
 ## Install
+
+Soft Halo Usage is in the official [Hermes plugin catalog](https://github.com/NousResearch/hermes-agent/tree/main/plugin-catalog), pinned to a reviewed commit:
+
+```bash
+hermes plugins install softhalo-usage --enable
+```
+
+Then start a new Hermes session. If `hermes plugins search softhalo` finds nothing, your Hermes's catalog doesn't include it yet: install from this repository instead, with `hermes plugins install ahujat/softhalo-usage-hermes --enable`, or by hand:
 
 1. Copy this folder to `~/.hermes/plugins/softhalo-usage/` (for a named profile, that profile's `plugins` folder).
 2. Enable it in `~/.hermes/config.yaml`:
@@ -45,7 +57,7 @@ Each file is written as `.tmp` and renamed when whole, so Soft Halo never reads 
 
 ### In WSL
 
-When Hermes runs inside WSL on the same Windows PC, the plugin writes to the same Windows folder, through the C: drive mount: `/mnt/c/Users/<Windows user>/AppData/Local/Softhalo/usage/`. It finds the Windows user by looking for an `AppData/Local/Softhalo` folder under `/mnt/c/Users`. If exactly one user has one, it uses that. If several do, it uses the one whose name matches your Linux user name. If it finds none, it writes nothing. If your C: drive is mounted elsewhere, or the names differ, set `SOFTHALO_USAGE_DIR` to the folder, for example `/mnt/c/Users/Ann/AppData/Local/Softhalo/usage`. `SOFTHALO_USAGE_DIR` also overrides the folder on Windows.
+When Hermes runs inside WSL on the same Windows PC, the plugin writes to the same Windows folder, through the C: drive mount: `/mnt/c/Users/<Windows user>/AppData/Local/Softhalo/usage/`. It finds the Windows user by looking for an `AppData/Local/Softhalo` folder under `/mnt/c/Users`. If exactly one user has one, it uses that. If several do, it uses the one whose name matches your Linux user name. If it finds none (C: isn't mounted, Soft Halo isn't installed on Windows, or several users have it and none matches), it writes nothing and logs one warning when Hermes loads it, saying which. If your C: drive is mounted elsewhere, or the names differ, set `SOFTHALO_USAGE_DIR` to the folder, for example `/mnt/c/Users/Ann/AppData/Local/Softhalo/usage`. `SOFTHALO_USAGE_DIR` also overrides the folder on Windows. If the folder it chose can't be written (for example `SOFTHALO_USAGE_DIR` on a drive that isn't mounted), it records nothing and logs one warning saying so, once.
 
 It reads only that count file and checks whether `inbox\.full` exists.
 

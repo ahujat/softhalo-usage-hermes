@@ -1,5 +1,5 @@
 name: softhalo-usage
-version: 0.1.0
+version: 0.1.1
 description: "Records token usage to a local folder for the Soft Halo desktop app. Observer hooks only; no tools, no commands, no network requests."
 author: "Soft Halo"
 provides_hooks:

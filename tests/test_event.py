@@ -113,6 +113,32 @@ class IdentityTests(unittest.TestCase):
         finally:
             shutil.rmtree(users, ignore_errors=True)
 
+    def test_inside_wsl_without_a_folder_the_warning_says_why(self):
+        users = Path(tempfile.mkdtemp(prefix="softhalo-hm-miss-"))
+        try:
+            self.assertIn("isn't visible at", sh.wsl_miss_notice(str(users / "missing")))
+            self.assertIn("no Windows user", sh.wsl_miss_notice(str(users)))
+            (users / "Ann" / "AppData" / "Local" / "Softhalo").mkdir(parents=True)
+            (users / "Sam" / "AppData" / "Local" / "Softhalo").mkdir(parents=True)
+            notice = sh.wsl_miss_notice(str(users))
+            self.assertIn("several Windows users", notice)
+            self.assertIn("SOFTHALO_USAGE_DIR", notice)
+        finally:
+            shutil.rmtree(users, ignore_errors=True)
+
+    def test_a_folder_that_cannot_be_written_is_warned_about_once(self):
+        blocker = Path(tempfile.mkdtemp(prefix="softhalo-hm-ro-"))
+        try:
+            (blocker / "x").write_text("a file, so x/usage can never be a folder")
+            hook = sh._make_hook("post_api_request", blocker / "x" / "usage", "hm-test")
+            with self.assertLogs("softhalo_usage", level="WARNING") as logs:
+                hook(**main_payload())
+                hook(**main_payload())
+            self.assertEqual(len(logs.output), 1)
+            self.assertIn("can't write to", logs.output[0])
+        finally:
+            shutil.rmtree(blocker, ignore_errors=True)
+
     def test_file_names_stay_plain(self):
         self.assertEqual(sh.safe_name("../../etc"), "______etc")
         self.assertEqual(sh.safe_name(""), "unknown")

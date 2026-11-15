@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import os
 import platform as _platform
 import secrets
@@ -19,7 +20,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Optional
 
-ADAPTER_VERSION = "0.1.0"
+ADAPTER_VERSION = "0.1.1"
 EVENT_MAX_BYTES = 16 * 1024  # Soft Halo refuses event files over 16 KiB
 _ID_MAX = 200
 
@@ -72,6 +73,28 @@ def wsl_usage_root(users_dir: str, linux_user: Optional[str]) -> Optional[Path]:
     else:
         pick = next((p for p in people if linux_user and p.lower() == linux_user.lower()), None)
     return Path(users_dir) / pick / "AppData" / "Local" / "Softhalo" / "usage" if pick else None
+
+
+def wsl_miss_notice(users_dir: str = WSL_USERS_DIR) -> str:
+    """The one warning logged when WSL gives no folder, saying why nothing will be recorded."""
+    try:
+        people = [
+            d.name
+            for d in Path(users_dir).iterdir()
+            if d.is_dir() and d.name.lower() not in _NOT_A_USER and (d / "AppData" / "Local" / "Softhalo").exists()
+        ]
+    except OSError:
+        why = f"the Windows drive isn't visible at {users_dir}"
+    else:
+        why = (
+            f"several Windows users under {users_dir} have a Soft Halo folder and none is named like your Linux user"
+            if len(people) > 1
+            else f"no Windows user under {users_dir} has a Soft Halo folder (is Soft Halo installed on Windows?)"
+        )
+    return (
+        f"Soft Halo Usage: nothing is recorded, because {why}. Set SOFTHALO_USAGE_DIR to Soft Halo's usage "
+        "folder, for example /mnt/c/Users/<you>/AppData/Local/Softhalo/usage."
+    )
 
 
 def resolve_root(env: dict[str, str], platform: str, home: Optional[str], os_release: str,
@@ -247,11 +270,28 @@ def publish(root: Path, record: dict[str, Any], now: datetime) -> Optional[Path]
 # Hermes entry point
 # ---------------------------------------------------------------------------------------------
 
+def write_failed_notice(root: Path, error: OSError) -> str:
+    """The one warning logged when the usage folder can't be written (a drive not mounted, no permission)."""
+    reason = error.strerror or type(error).__name__
+    return (
+        f"Soft Halo Usage: can't write to {root} ({reason}), so nothing is recorded. Check that the drive is "
+        "mounted and SOFTHALO_USAGE_DIR, if set, names Soft Halo's usage folder."
+    )
+
+
+_write_warned: set[str] = set()
+
+
 def _make_hook(hook: str, root: Path, profile: str):
     def on_call(**kwargs: Any) -> None:
         try:
             now = datetime.now(timezone.utc)
             publish(root, build_event(hook, kwargs, profile, now), now)
+        except OSError as error:
+            # Say it once per folder, not on every call; the agent carries on either way.
+            if str(root) not in _write_warned:
+                _write_warned.add(str(root))
+                logging.getLogger(__name__).warning(write_failed_notice(root, error))
         except Exception:
             # Usage collection must never disturb the agent: a failed write loses one record only.
             pass
@@ -264,6 +304,9 @@ def register(ctx: Any) -> None:
     home = env.get("HOME") or env.get("USERPROFILE") or str(Path.home())
     root = resolve_root(env, sys.platform, home, _platform.release())
     if root is None:
+        # Say why once, at load, instead of staying silent (C: not mounted, or no Soft Halo on Windows).
+        if is_wsl(env, sys.platform, _platform.release()):
+            logging.getLogger(__name__).warning(wsl_miss_notice())
         return
     profile = profile_id(hermes_home(env))
     for hook in ("post_api_request", "post_auxiliary_call"):
